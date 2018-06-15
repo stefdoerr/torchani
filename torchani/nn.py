@@ -6,8 +6,12 @@ import lark
 import struct
 import copy
 import math
-from . import buildin_network_dir
+from . import buildin_network_dir, buildin_model_prefix
 from .benchmarked import BenchmarkedModule
+
+# For python 2 compatibility
+if not hasattr(math, 'inf'):
+    math.inf = float('inf')
 
 
 class PerSpeciesFromNeuroChem(torch.jit.ScriptModule):
@@ -329,6 +333,10 @@ class ModelOnAEV(BenchmarkedModule):
             Path to the NeuroChem network directory. If this parameter is set, then `per_species` and
             `reducer` should not be set. If set to `None`, then the network ship with torchani will be
             used.
+        ensemble : int
+            Number of models in the model ensemble. If this is not set, then `from_nc` would refer to
+            the directory storing the model. If set to a number, then `from_nc` would refer to the prefix
+            of directories.
         per_species : dict
             Dictionary with supported species as keys and objects of `torch.nn.Model` as values, storing
             the model for each supported species. These models will finally become `model_X` attributes.
@@ -364,21 +372,39 @@ class ModelOnAEV(BenchmarkedModule):
         self.aev_computer = aev_computer
 
         if 'from_nc' in kwargs and 'per_species' not in kwargs and 'reducer' not in kwargs:
-            network_dir = kwargs['from_nc']
-            if network_dir is None:
-                network_dir = buildin_network_dir
+            if 'ensemble' not in kwargs:
+                if kwargs['from_nc'] is None:
+                    kwargs['from_nc'] = buildin_network_dir
+                network_dirs = [kwargs['from_nc']]
+                self.suffixes = ['']
+            else:
+                if kwargs['from_nc'] is None:
+                    kwargs['from_nc'] = buildin_model_prefix
+                network_prefix = kwargs['from_nc']
+                network_dirs = []
+                self.suffixes = []
+                for i in range(kwargs['ensemble']):
+                    suffix = '{}'.format(i)
+                    network_dir = os.path.join(
+                        network_prefix+suffix, 'networks')
+                    network_dirs.append(network_dir)
+                    self.suffixes.append(suffix)
+
             self.reducer = torch.sum
-            for i in self.aev_computer.species:
-                filename = os.path.join(network_dir, 'ANN-{}.nnf'.format(i))
-                model_X = PerSpeciesFromNeuroChem(
-                    self.aev_computer.dtype, self.aev_computer.device, filename)
-                if self.output_length is None:
-                    self.output_length = model_X.output_length
-                elif self.output_length != model_X.output_length:
-                    raise ValueError(
-                        'output length of each atomic neural network must match')
-                setattr(self, 'model_' + i, model_X)
+            for network_dir, suffix in zip(network_dirs, self.suffixes):
+                for i in self.aev_computer.species:
+                    filename = os.path.join(
+                        network_dir, 'ANN-{}.nnf'.format(i))
+                    model_X = PerSpeciesFromNeuroChem(
+                        self.aev_computer.dtype, self.aev_computer.device, filename)
+                    if self.output_length is None:
+                        self.output_length = model_X.output_length
+                    elif self.output_length != model_X.output_length:
+                        raise ValueError(
+                            'output length of each atomic neural network must match')
+                    setattr(self, 'model_' + i + suffix, model_X)
         elif 'from_nc' not in kwargs and 'per_species' in kwargs and 'reducer' in kwargs:
+            self.suffixes = ['']
             per_species = kwargs['per_species']
             for i in per_species:
                 model_X = per_species[i]
@@ -449,8 +475,12 @@ class ModelOnAEV(BenchmarkedModule):
             end = atoms - rev_species.index(s)
             y = aev[:, begin:end, :].contiguous(
             ).view(-1, self.aev_computer.aev_length)
-            model_X = getattr(self, 'model_' + s)
-            y = model_X(y)
+
+            def apply_model(suffix):
+                model_X = getattr(self, 'model_' + s + suffix)
+                return model_X(y)
+            ys = [apply_model(suffix) for suffix in self.suffixes]
+            y = sum(ys) / len(ys)
             y = y.view(conformations, -1, self.output_length)
             per_species_outputs.append(y)
 
