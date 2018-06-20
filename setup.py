@@ -10,6 +10,7 @@ setup(name='torchani',
       author_email='qasdfgtyuiop@ufl.edu',
       license='MIT',
       packages=['torchani'],
+      include_package_data=True,
       install_requires=[
           'torch',
           'lark-parser',
