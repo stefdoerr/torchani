@@ -135,9 +135,9 @@ class PerSpeciesFromNeuroChem(torch.jit.ScriptModule):
                     v = v[0]
                     if v.type == 'FILENAME':
                         v = v.value
-                    elif v.type == 'SIGNED_INT':
+                    elif v.type == 'SIGNED_INT' or v.type == 'INT':
                         v = int(v.value)
-                    elif v.type == 'SIGNED_FLOAT':
+                    elif v.type == 'SIGNED_FLOAT' or v.type == 'FLOAT':
                         v = float(v.value)
                     else:
                         raise ValueError('unexpected type')
