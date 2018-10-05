@@ -104,8 +104,8 @@ class PerSpeciesFromNeuroChem(torch.jit.ScriptModule):
 
         start: inputsize atom_net
 
-        value : INT
-              | FLOAT
+        value : SIGNED_INT
+              | SIGNED_FLOAT
               | "FILE" ":" FILENAME "[" INT "]"
 
         FILENAME : ("_"|"-"|"."|LETTER|DIGIT)+
@@ -115,7 +115,8 @@ class PerSpeciesFromNeuroChem(torch.jit.ScriptModule):
         %import common.WORD
         %import common.DIGIT
         %import common.INT
-        %import common.FLOAT
+        %import common.SIGNED_INT
+        %import common.SIGNED_FLOAT
         %import common.CNAME
         %import common.WS
         %ignore WS
@@ -134,9 +135,9 @@ class PerSpeciesFromNeuroChem(torch.jit.ScriptModule):
                     v = v[0]
                     if v.type == 'FILENAME':
                         v = v.value
-                    elif v.type == 'INT':
+                    elif v.type == 'SIGNED_INT':
                         v = int(v.value)
-                    elif v.type == 'FLOAT':
+                    elif v.type == 'SIGNED_FLOAT':
                         v = float(v.value)
                     else:
                         raise ValueError('unexpected type')
