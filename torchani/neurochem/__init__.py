@@ -555,10 +555,10 @@ class Trainer:
         def l2():
             return sum([c * (m.weight ** 2).sum() for c, m in l2reg])
         self.mse_loss = TransformedLoss(MSELoss('energies'),
-                                        lambda x: x + l2())
+                                        lambda x: x + l2() + MSELoss('forces'))
         self.exp_loss = TransformedLoss(
             MSELoss('energies'),
-            lambda x: 0.5 * (torch.exp(2 * x) - 1) + l2())
+            lambda x: 0.5 * (torch.exp(2 * x) - 1) + l2() + MSELoss('forces'))
 
         if params:
             raise ValueError('unrecognized parameter')
@@ -574,6 +574,8 @@ class Trainer:
             metrics={
                 'RMSE': RMSEMetric('energies'),
                 'MAE': MAEMetric('energies'),
+                'ForceRMSE': RMSEMetric('forces'),
+                'ForceMAE': MAEMetric('forces'),
             }
         )
         evaluator.run(dataset)

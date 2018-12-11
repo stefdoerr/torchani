@@ -32,8 +32,13 @@ class Container(torch.nn.ModuleDict):
             for k in self:
                 _, result = self[k](sx)
                 results[k].append(result)
+                if k == 'energies':
+                    if 'forces' not in results:
+                        results['forces'] = []
+                    results['forces'].append(torch.autograd.grad(results['energies'], sx[1], retain_graph=True, create_graph=True))
         for k in self:
             results[k] = torch.cat(results[k])
+
         results['species'] = utils.pad([s for s, _ in species_x])
         return results
 
